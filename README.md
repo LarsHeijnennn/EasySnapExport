@@ -259,30 +259,247 @@ python3 normalize_snapchat_export.py "/path/to/Snapchat export" \
 
 Then rerun the overlay steps if needed.
 
-## Advanced Options
+## Settings You Can Use
 
-```text
---check
---apply
---resume
---compose-overlays
---merge-composited-into-media
---merge-video-overlays
---video-dry-run
---low-impact
---workers N
---exiftool-batch-size N
---verify-hashes suspected|all|none
+Most people only need the commands above. This section explains every setting in
+plain language.
+
+### Folder Settings
+
+`input`
+
+The first path after the script name. This is the folder that contains all your
+unzipped Snapchat export folders.
+
+```bash
+python3 normalize_snapchat_export.py "/Users/you/Downloads/Snapchat export"
 ```
 
-Default deduplication is fast: the tool hashes only suspected duplicate groups.
-For stricter but slower checking:
+`--output "/path/to/output"`
+
+Where the clean folder should be created. If you skip this, the script creates:
+
+```text
+<input>/normalized-output/
+```
+
+Recommended: set it yourself so it is obvious where the result goes.
+
+```bash
+--output "/Users/you/Downloads/Snapchat export normalized"
+```
+
+`--timezone Europe/Amsterdam`
+
+The timezone used in the readable filenames. For example, this controls the
+`19-04-25` part in:
+
+```text
+2020-08-30_19-04-25_UUID_main.mp4
+```
+
+Use your own timezone if needed, for example:
+
+```text
+America/New_York
+Europe/London
+Asia/Tokyo
+```
+
+UTC timestamps are still stored in the reports.
+
+### Safety Settings
+
+`--check`
+
+Checks whether your Mac is ready. It does not copy, edit, or delete media.
+
+Use this first on a new computer.
+
+`--resume`
+
+Use this if the main `--apply` step was interrupted. It skips files that already
+exist in the output folder with the expected size.
+
+`--low-impact`
+
+Makes the script gentler on your Mac. It uses fewer workers, smaller metadata
+batches, and lower process priority. This is recommended for big exports.
+
+### Main Action Settings
+
+`--apply`
+
+Actually creates the clean output folder. Without `--apply`, the script only
+does a dry run.
+
+`--compose-overlays`
+
+Creates baked JPG copies where Snapchat image overlays are applied to matching
+JPG memories.
+
+Usually use it together with:
+
+```text
+--merge-composited-into-media
+```
+
+`--compose-only`
+
+Runs only the still-image overlay step on an output folder that already exists.
+Use this if you already ran the main cleanup, but later decide you want to merge
+JPG overlays.
+
+Usually use it like this:
+
+```bash
+python3 normalize_snapchat_export.py "/path/to/Snapchat export" \
+  --output "/path/to/Snapchat export normalized" \
+  --timezone Europe/Amsterdam \
+  --compose-only \
+  --merge-composited-into-media \
+  --low-impact
+```
+
+`--merge-composited-into-media`
+
+Takes successful baked image overlays and puts them back into the normal
+`media/` folder. The final file stays named like:
+
+```text
+YYYY-MM-DD_HH-MM-SS_UUID_main.jpg
+```
+
+When this succeeds, the separate matching `*_overlay.*` file is removed.
+
+`--merge-video-overlays`
+
+Bakes exact video overlays into matching MP4 files. This is separate from the
+main `--apply` run because video re-encoding can be slow.
+
+The tool only merges exact matches:
+
+```text
+same folder
+same timestamp
+same UUID
+same filename stem
+```
+
+It does not guess.
+
+`--video-dry-run`
+
+Shows which video overlays would be merged, without changing files. It writes a
+report to:
+
+```text
+metadata/video_overlay_pairs.csv
+```
+
+Use this if you want to inspect video pairings before merging.
+
+### Speed and Deduplication Settings
+
+`--workers N`
+
+Controls how much parallel work the script does for scanning, copying, hashing,
+and timestamp updates.
+
+Default:
+
+```text
+min(8, CPU count)
+```
+
+For a calmer Mac:
+
+```bash
+--workers 2
+```
+
+If you use `--low-impact`, the script automatically uses at most 2 workers.
+
+`--exiftool-batch-size N`
+
+Controls how many files are sent to ExifTool at once when writing metadata.
+
+Default:
+
+```text
+750
+```
+
+You normally do not need to change this. If your Mac feels slow or memory-heavy,
+try:
+
+```bash
+--exiftool-batch-size 150
+```
+
+If you use `--low-impact`, the script automatically uses a smaller batch size.
+
+`--progress-every N`
+
+Controls how often progress is printed.
+
+Example:
+
+```bash
+--progress-every 100
+```
+
+Lower numbers print more often. Higher numbers print less often.
+
+`--verify-hashes suspected|all|none`
+
+Controls how carefully duplicates are checked.
+
+Recommended default:
+
+```bash
+--verify-hashes suspected
+```
+
+Modes:
+
+- `suspected`: fast and safe for most exports. Only likely duplicate groups are
+  hashed.
+- `all`: slowest, strictest. Hashes all media and can detect identical files
+  even if names differ.
+- `none`: fastest, least strict. Uses filename and file size only.
+
+For stricter but slower duplicate checking:
 
 ```bash
 python3 normalize_snapchat_export.py "/path/to/Snapchat export" \
   --output "/path/to/Snapchat export normalized" \
   --timezone Europe/Amsterdam \
   --verify-hashes all
+```
+
+### Recommended Settings
+
+For most people, use this for the main cleanup:
+
+```bash
+python3 normalize_snapchat_export.py "/path/to/Snapchat export" \
+  --output "/path/to/Snapchat export normalized" \
+  --timezone Europe/Amsterdam \
+  --apply \
+  --compose-overlays \
+  --merge-composited-into-media \
+  --low-impact
+```
+
+Then use this for video overlays:
+
+```bash
+python3 normalize_snapchat_export.py "/path/to/Snapchat export" \
+  --output "/path/to/Snapchat export normalized" \
+  --timezone Europe/Amsterdam \
+  --merge-video-overlays \
+  --low-impact
 ```
 
 ## Safety Notes
