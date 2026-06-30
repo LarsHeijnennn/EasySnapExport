@@ -1,0 +1,26 @@
+.DS_Store
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+
+# Generated output from Snapchat export normalization
+normalized-output/
+* normalized/
+metadata/
+logs/
+media/
+composited/
+.work/
+.compose-work/
+.video-compose-work/
+
+# Raw exports and large media archives should not be committed
+*.zip
+*.mp4
+*.mov
+*.jpg
+*.jpeg
+*.png
+*.webp
