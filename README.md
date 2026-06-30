@@ -1,22 +1,28 @@
-# Snapchat Export Metadata Normalizer
+# EasySnapExport
 
-Snapchat Memories exports often arrive as many ZIP files with repeated folders,
-HTML preview pages, JSON metadata, AppleDouble junk, and thousands of media files
-spread across multiple `mydata.../memories/` directories. This tool turns those
-unzipped folders into one clean, sortable media library.
+EasySnapExport turns a messy Snapchat Memories export into one clean, sortable
+folder.
 
-The raw export is never modified. The tool copies unique media files into a new
-output folder, embeds capture date/time metadata, sets filesystem timestamps for
-Finder sorting, and writes CSV/JSON indexes so the result is auditable.
+Snapchat often gives you many ZIP files. After you unzip them, you get repeated
+folders, HTML previews, JSON files, duplicate media, separate overlay files, and
+files with dates that are hard to trust. This tool cleans that up.
 
-## Requirements
+It creates a new output folder with:
 
-- Python 3.9 or newer.
-- ExifTool for metadata-writing modes.
-- Pillow for still-image overlay composition.
-- ffmpeg/ffprobe for video overlay merging.
+- one deduplicated copy of each memory;
+- correct capture date/time in the filename;
+- embedded photo/video metadata;
+- Finder-friendly creation dates on macOS;
+- Snapchat text/image/video overlays merged into the right files when safe;
+- CSV reports showing what was merged, skipped, duplicated, or missing.
 
-On macOS:
+Your original Snapchat export folder is not edited.
+
+## What You Need
+
+This tool is built for macOS.
+
+Install the requirements once:
 
 ```bash
 brew install exiftool
@@ -24,125 +30,136 @@ brew install ffmpeg
 python3 -m pip install Pillow
 ```
 
-Plain dry-runs do not require ExifTool, Pillow, or ffmpeg. Applying metadata
-requires ExifTool. Image overlay composition requires Pillow. Video overlay
-merging requires ffmpeg and ffprobe.
+If you do not have Homebrew, install it from:
 
-## Basic Usage
+```text
+https://brew.sh
+```
 
-Run preflight first on a new Mac:
+The script also needs Python 3.9 or newer. macOS usually already has a usable
+Python 3, but Homebrew Python also works.
+
+## Step 1: Unzip Snapchat's ZIP Files
+
+Put all unzipped Snapchat export folders inside one parent folder.
+
+Example:
+
+```text
+/Users/you/Downloads/Snapchat export/
+  mydata~123/
+  mydata~123-2/
+  mydata~123-3/
+  ...
+```
+
+Do not point the tool at one inner `memories/` folder. Point it at the parent
+folder that contains all the unzipped export folders.
+
+## Step 2: Run a Check First
+
+Open Terminal and run:
 
 ```bash
-python normalize_snapchat_export.py "/path/to/unzipped Snapchat export" \
-  --output "/path/to/normalized-output" \
+python3 normalize_snapchat_export.py "/path/to/Snapchat export" \
+  --output "/path/to/Snapchat export normalized" \
   --timezone Europe/Amsterdam \
   --check
 ```
 
-This checks Python version, input/output paths, ExifTool, Pillow, ffmpeg/ffprobe,
-timezone support, and whether the input folder looks like an unzipped Snapchat
-export. If something is missing, it prints the install command.
-
-Dry-run first:
+Example:
 
 ```bash
-python normalize_snapchat_export.py "/path/to/unzipped Snapchat export" \
-  --output "/path/to/normalized-output" \
+python3 normalize_snapchat_export.py "/Users/you/Downloads/Snapchat export" \
+  --output "/Users/you/Downloads/Snapchat export normalized" \
+  --timezone Europe/Amsterdam \
+  --check
+```
+
+If something is missing, the script tells you what to install.
+
+## Step 3: Do a Dry Run
+
+A dry run scans everything but does not copy or edit files.
+
+```bash
+python3 normalize_snapchat_export.py "/path/to/Snapchat export" \
+  --output "/path/to/Snapchat export normalized" \
   --timezone Europe/Amsterdam
 ```
 
-Actually create the normalized copy:
+Look for a summary like:
 
-```bash
-python normalize_snapchat_export.py "/path/to/unzipped Snapchat export" \
-  --output "/path/to/normalized-output" \
-  --timezone Europe/Amsterdam \
-  --apply
+```text
+unique_output_media_files: ...
+duplicate_files: ...
+conflict_groups: ...
+unmatched_media_files: ...
 ```
 
-Create baked image copies after a completed run:
+If `conflict_groups` or `unmatched_media_files` is high, check the reports and
+make sure you pointed the script at the right folder.
+
+## Step 4: Create the Clean Folder
+
+This command does the main cleanup and merges still-image overlays into the
+right JPG files:
 
 ```bash
-python normalize_snapchat_export.py "/path/to/unzipped Snapchat export" \
-  --output "/path/to/normalized-output" \
+python3 normalize_snapchat_export.py "/path/to/Snapchat export" \
+  --output "/path/to/Snapchat export normalized" \
   --timezone Europe/Amsterdam \
-  --compose-only \
+  --apply \
+  --compose-overlays \
   --merge-composited-into-media \
   --low-impact
 ```
 
-This reads the existing normalized output index when available. If the index is
-missing, it rebuilds the needed pairing information from `media/` filenames and
-Finder/filesystem timestamps. With `--merge-composited-into-media`, successful
-still-image overlays replace their matching `media/..._main.jpg`, and the
-separate successful `media/..._overlay.*` file is removed. A merge report is
-written to:
+Use `--low-impact` if you want the Mac to stay more usable while the script
+runs. It is slower, but gentler.
 
-```text
-normalized-output/metadata/merged_composited_overlays.csv
-```
+## Step 5: Merge Video Overlays
 
-Unsupported overlays remain in `media/` and are reported in
-`metadata/uncomposited_overlays.csv`.
-
-Merge video overlays after a completed run:
+Some Snapchat videos have a matching overlay file. Merge those after Step 4:
 
 ```bash
-python normalize_snapchat_export.py "/path/to/unzipped Snapchat export" \
-  --output "/path/to/normalized-output" \
+python3 normalize_snapchat_export.py "/path/to/Snapchat export" \
+  --output "/path/to/Snapchat export normalized" \
   --timezone Europe/Amsterdam \
   --merge-video-overlays \
   --low-impact
 ```
 
-Video merging is exact-stem only: the tool only combines files in the same
-folder where `*_main.mp4` has a matching `*_overlay.png` or `*_overlay.webp`
-with the exact same timestamp and UUID prefix. Successful videos replace the
-matching `media/..._main.mp4`; the matching overlay file is removed only after
-the new MP4 validates. Reports are written to:
+The script is strict here. It only combines a video and overlay when they are in
+the same folder and have the exact same timestamp and UUID in the filename.
+
+## What the Output Looks Like
+
+After a successful run:
 
 ```text
-normalized-output/metadata/video_overlay_pairs.csv
-normalized-output/metadata/merged_video_overlays.csv
-normalized-output/metadata/unmerged_video_overlays.csv
-```
-
-Resume a partially completed run:
-
-```bash
-python normalize_snapchat_export.py "/path/to/unzipped Snapchat export" \
-  --output "/path/to/normalized-output" \
-  --timezone Europe/Amsterdam \
-  --apply \
-  --resume
-```
-
-If `--output` is omitted, the default is:
-
-```text
-<input>/normalized-output/
-```
-
-## Output
-
-```text
-normalized-output/
-  media/YYYY/MM/
-  metadata/snapchat_media_index.csv
-  metadata/snapchat_media_index.json
-  metadata/duplicate_files.csv
-  metadata/conflicts.csv
-  metadata/unmatched_json_rows.csv
-  metadata/unmatched_media_files.csv
-  logs/run_summary.json
-  logs/run_summary.txt
+Snapchat export normalized/
+  media/
+    2017/
+    2018/
+    2019/
+    ...
+  metadata/
+  logs/
   README.md
 ```
 
-Normalized filenames use local time in the timezone you choose:
+Your actual memories are in:
 
 ```text
-YYYY-MM-DD_HH-MM-SS_UUID_role.ext
+Snapchat export normalized/media/
+```
+
+Files are named like this:
+
+```text
+YYYY-MM-DD_HH-MM-SS_UUID_main.jpg
+YYYY-MM-DD_HH-MM-SS_UUID_main.mp4
 ```
 
 Example:
@@ -151,105 +168,130 @@ Example:
 2020-08-30_19-04-25_B818AA44-45F0-44ED-AC2A-B874D85324CA_main.mp4
 ```
 
-UTC timestamps are still preserved in the index files.
+The date/time in the filename uses the timezone you pass with `--timezone`.
+UTC timestamps are still kept in the metadata reports.
 
-## Deduplication
+## What Happens to Overlays?
 
-The default dedupe mode is optimized for large macOS exports:
+Snapchat often stores the visual overlay separately from the photo or video.
+EasySnapExport handles that in three ways:
 
-1. Group likely duplicates by original filename.
-2. Hash only suspected duplicate/conflict groups.
-3. Keep one identical copy.
-4. Record skipped duplicates in `metadata/duplicate_files.csv`.
+- If a JPG overlay can be safely applied, the `*_main.jpg` file is replaced by
+  the baked image and the separate overlay file is removed.
+- If a video overlay can be safely applied, the `*_main.mp4` file is replaced
+  by the baked video and the separate overlay file is removed.
+- If an overlay is broken, unreadable, or unsafe to match, it is left in
+  `media/` and reported.
 
-If the same original filename exists with different content, the tool treats it
-as a conflict and preserves each version with a `_conflict-XX` suffix. It never
-overwrites a different file.
+The tool never guesses. It only merges exact filename matches.
 
-For stricter but slower checking:
+## Reports
 
-```bash
-python normalize_snapchat_export.py "/path/to/export" \
-  --output "/path/to/output" \
-  --verify-hashes all
-```
-
-Available modes:
-
-- `--verify-hashes suspected`: fast default; hash duplicate-looking groups only.
-- `--verify-hashes all`: hash all media and dedupe identical content globally.
-- `--verify-hashes none`: fastest; dedupe by filename and size only.
-
-## Metadata Written
-
-The tool writes embedded metadata through ExifTool in batches:
-
-- JPG: EXIF/XMP date fields and GPS when Snapchat JSON contains location.
-- MP4: QuickTime date fields and location where ExifTool supports it.
-- PNG overlays: XMP/text timestamp metadata where supported.
-
-It also sets filesystem access/modified time with Python and, on macOS, sets the
-Finder creation date through the native filesystem API with `SetFile` fallback.
-
-## Performance Options
+Reports live in:
 
 ```text
---workers N
---exiftool-batch-size N
---verify-hashes suspected|all|none
---progress-every N
---low-impact
+Snapchat export normalized/metadata/
+```
+
+Useful files:
+
+```text
+snapchat_media_index.csv
+duplicate_files.csv
+merged_composited_overlays.csv
+merged_video_overlays.csv
+uncomposited_overlays.csv
+unmerged_video_overlays.csv
+unmatched_json_rows.csv
+unmatched_media_files.csv
+```
+
+Run summaries live in:
+
+```text
+Snapchat export normalized/logs/
+```
+
+## If Something Goes Wrong
+
+Run the check command again:
+
+```bash
+python3 normalize_snapchat_export.py "/path/to/Snapchat export" \
+  --output "/path/to/Snapchat export normalized" \
+  --timezone Europe/Amsterdam \
+  --check
+```
+
+Common fixes:
+
+```bash
+brew install exiftool
+brew install ffmpeg
+python3 -m pip install Pillow
+```
+
+If Terminal says `python3: command not found`, install Python:
+
+```bash
+brew install python
+```
+
+If the script says it found no Snapchat media files, you probably selected the
+wrong folder. Choose the parent folder that contains all unzipped `mydata...`
+folders.
+
+If video merging feels slow, that is normal. Videos must be re-encoded. Keep
+`--low-impact` on if you want the Mac to stay responsive.
+
+## Resume a Run
+
+If the main normalization step was interrupted, run:
+
+```bash
+python3 normalize_snapchat_export.py "/path/to/Snapchat export" \
+  --output "/path/to/Snapchat export normalized" \
+  --timezone Europe/Amsterdam \
+  --apply \
+  --resume \
+  --low-impact
+```
+
+Then rerun the overlay steps if needed.
+
+## Advanced Options
+
+```text
+--check
+--apply
+--resume
+--compose-overlays
 --merge-composited-into-media
 --merge-video-overlays
 --video-dry-run
+--low-impact
+--workers N
+--exiftool-batch-size N
+--verify-hashes suspected|all|none
 ```
 
-Good defaults are already chosen for large local exports:
-
-- workers: `min(8, CPU count)`
-- ExifTool batch size: `750`
-- hash mode: `suspected`
-- `--low-impact`: reduces workers to at most 2, uses smaller ExifTool batches,
-  and lowers process priority on macOS.
-
-## Verification
-
-Check the summary:
+Default deduplication is fast: the tool hashes only suspected duplicate groups.
+For stricter but slower checking:
 
 ```bash
-cat "/path/to/normalized-output/logs/run_summary.txt"
+python3 normalize_snapchat_export.py "/path/to/Snapchat export" \
+  --output "/path/to/Snapchat export normalized" \
+  --timezone Europe/Amsterdam \
+  --verify-hashes all
 ```
 
-Inspect Finder-visible dates on macOS:
+## Safety Notes
 
-```bash
-mdls -name kMDItemContentCreationDate \
-     -name kMDItemFSCreationDate \
-     "/path/to/normalized-output/media/YYYY/MM/file.mp4"
-```
+- Raw Snapchat export folders are not edited.
+- The normalized output folder is safe to delete and recreate.
+- Large media files should not be committed to Git.
+- The included `.gitignore` blocks common media/export outputs.
 
-Inspect embedded metadata:
+## License
 
-```bash
-exiftool -time:all -gps:all "/path/to/normalized-output/media/YYYY/MM/file.mp4"
-```
-
-## Known Snapchat Weirdness
-
-- Snapchat may include duplicate ZIP contents.
-- `memories_history.json` can contain rows for media files that are missing from
-  the downloaded export.
-- Overlay PNGs often pair with a main JPG/MP4 and inherit the main media's
-  timestamp/location.
-- Baked overlay copies are optional. Use `--compose-only` after a normal run, or
-  `--compose-overlays` together with `--apply`, to create separate JPGs where
-  transparent overlays are visually applied to JPG main images.
-- Video overlays can be baked with `--merge-video-overlays` when ffmpeg is
-  installed. The pairing is exact-stem only to avoid combining the wrong files.
-- JPG metadata is written with local EXIF time plus timezone offset so macOS
-  Finder/Spotlight does not shift the displayed content date.
-- Some Snapchat overlay files are named `.png` but contain WebP data. The tool
-  detects that by file signature and writes them as `.webp` in the normalized
-  output so metadata tools and photo apps handle them correctly.
-- HTML preview files are not authoritative; the JSON plus media filesystem
-  times are better sources for exact timestamps.
+No license has been added yet.
