@@ -23,6 +23,10 @@ Your original Snapchat export folder is not edited.
 
 This tool works on macOS and Windows.
 
+You do not choose a macOS or Windows mode. EasySnapExport detects the operating
+system automatically, then uses the right tool names, install hints, and
+timestamp behavior for that computer.
+
 The script needs Python 3.9 or newer, ExifTool, ffmpeg, and Pillow.
 
 On macOS, install the requirements once:

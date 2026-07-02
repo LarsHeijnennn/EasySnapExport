@@ -226,16 +226,28 @@ def which_any(*names: str) -> Optional[str]:
     return None
 
 
+def current_os() -> str:
+    return platform.system() or "Unknown"
+
+
+def is_macos() -> bool:
+    return current_os() == "Darwin"
+
+
+def is_windows() -> bool:
+    return current_os() == "Windows"
+
+
 def usable_tool_candidate(path: Path) -> bool:
-    if platform.system() == "Windows":
+    if is_windows():
         return path.is_file()
     return path.exists() and os.access(path, os.X_OK)
 
 
 def platform_tool_candidates(tool: str) -> List[Path]:
-    if platform.system() == "Darwin":
+    if is_macos():
         return [Path("/opt/homebrew/bin") / tool, Path("/usr/local/bin") / tool]
-    if platform.system() != "Windows":
+    if not is_windows():
         return []
 
     exe = f"{tool}.exe"
@@ -253,31 +265,31 @@ def platform_tool_candidates(tool: str) -> List[Path]:
 
 
 def python_install_hint() -> str:
-    if platform.system() == "Windows":
+    if is_windows():
         return "Install Python 3.9+ with: winget install -e --id Python.Python.3.12"
-    if platform.system() == "Darwin":
+    if is_macos():
         return "Install a newer Python with: brew install python"
     return "Install Python 3.9+ with your system package manager."
 
 
 def exiftool_install_hint() -> str:
-    if platform.system() == "Windows":
+    if is_windows():
         return "Install ExifTool with: winget install -e --id OliverBetz.ExifTool, then open a new PowerShell window."
-    if platform.system() == "Darwin":
+    if is_macos():
         return "Install ExifTool with: brew install exiftool"
     return "Install ExifTool and make sure the exiftool command is on PATH."
 
 
 def pillow_install_hint() -> str:
-    if platform.system() == "Windows":
+    if is_windows():
         return "Install Pillow with: py -m pip install Pillow"
     return "Install Pillow with: python3 -m pip install Pillow"
 
 
 def ffmpeg_install_hint() -> str:
-    if platform.system() == "Windows":
+    if is_windows():
         return "Install ffmpeg with: winget install -e --id Gyan.FFmpeg, then open a new PowerShell window."
-    if platform.system() == "Darwin":
+    if is_macos():
         return "Install ffmpeg with: brew install ffmpeg"
     return "Install ffmpeg/ffprobe and make sure both commands are on PATH."
 
@@ -309,6 +321,8 @@ def preflight(args: argparse.Namespace, input_dir: Path, output: Path, tz) -> No
     ok: List[str] = []
     problems: List[str] = []
     warnings: List[str] = []
+
+    ok.append(f"operating system detected: {current_os()}")
 
     if sys.version_info < (3, 9):
         problems.append(
@@ -967,7 +981,7 @@ class TimeSpec(ctypes.Structure):
 
 
 def set_birthtime_macos(path: Path, dt: datetime) -> bool:
-    if platform.system() != "Darwin":
+    if not is_macos():
         return False
     try:
         libc = ctypes.CDLL("libc.dylib", use_errno=True)
