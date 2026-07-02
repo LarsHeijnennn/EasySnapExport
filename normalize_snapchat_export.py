@@ -189,33 +189,97 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
 
 
 def find_exiftool() -> Optional[str]:
-    found = shutil.which("exiftool")
+    found = which_any("exiftool", "exiftool.exe")
     if found:
         return found
-    for candidate in ("/opt/homebrew/bin/exiftool", "/usr/local/bin/exiftool"):
-        if os.path.exists(candidate) and os.access(candidate, os.X_OK):
-            return candidate
+    for candidate in platform_tool_candidates("exiftool"):
+        if usable_tool_candidate(candidate):
+            return str(candidate)
     return None
 
 
 def find_ffmpeg() -> Optional[str]:
-    found = shutil.which("ffmpeg")
+    found = which_any("ffmpeg", "ffmpeg.exe")
     if found:
         return found
-    for candidate in ("/opt/homebrew/bin/ffmpeg", "/usr/local/bin/ffmpeg"):
-        if os.path.exists(candidate) and os.access(candidate, os.X_OK):
-            return candidate
+    for candidate in platform_tool_candidates("ffmpeg"):
+        if usable_tool_candidate(candidate):
+            return str(candidate)
     return None
 
 
 def find_ffprobe() -> Optional[str]:
-    found = shutil.which("ffprobe")
+    found = which_any("ffprobe", "ffprobe.exe")
     if found:
         return found
-    for candidate in ("/opt/homebrew/bin/ffprobe", "/usr/local/bin/ffprobe"):
-        if os.path.exists(candidate) and os.access(candidate, os.X_OK):
-            return candidate
+    for candidate in platform_tool_candidates("ffprobe"):
+        if usable_tool_candidate(candidate):
+            return str(candidate)
     return None
+
+
+def which_any(*names: str) -> Optional[str]:
+    for name in names:
+        found = shutil.which(name)
+        if found:
+            return found
+    return None
+
+
+def usable_tool_candidate(path: Path) -> bool:
+    if platform.system() == "Windows":
+        return path.is_file()
+    return path.exists() and os.access(path, os.X_OK)
+
+
+def platform_tool_candidates(tool: str) -> List[Path]:
+    if platform.system() == "Darwin":
+        return [Path("/opt/homebrew/bin") / tool, Path("/usr/local/bin") / tool]
+    if platform.system() != "Windows":
+        return []
+
+    exe = f"{tool}.exe"
+    candidates = [
+        Path.home() / "scoop" / "shims" / exe,
+        Path(os.environ.get("ProgramData", "C:/ProgramData")) / "chocolatey" / "bin" / exe,
+    ]
+    if tool in {"ffmpeg", "ffprobe"}:
+        local_appdata = os.environ.get("LOCALAPPDATA")
+        winget_root = Path(local_appdata) / "Microsoft" / "WinGet" / "Packages" if local_appdata else None
+        if winget_root and winget_root.exists():
+            candidates.extend(winget_root.glob(f"Gyan.FFmpeg_*/*/bin/{exe}"))
+            candidates.extend(winget_root.glob(f"Gyan.FFmpeg_*/ffmpeg-*/bin/{exe}"))
+    return candidates
+
+
+def python_install_hint() -> str:
+    if platform.system() == "Windows":
+        return "Install Python 3.9+ with: winget install -e --id Python.Python.3.12"
+    if platform.system() == "Darwin":
+        return "Install a newer Python with: brew install python"
+    return "Install Python 3.9+ with your system package manager."
+
+
+def exiftool_install_hint() -> str:
+    if platform.system() == "Windows":
+        return "Install ExifTool with: winget install -e --id OliverBetz.ExifTool, then open a new PowerShell window."
+    if platform.system() == "Darwin":
+        return "Install ExifTool with: brew install exiftool"
+    return "Install ExifTool and make sure the exiftool command is on PATH."
+
+
+def pillow_install_hint() -> str:
+    if platform.system() == "Windows":
+        return "Install Pillow with: py -m pip install Pillow"
+    return "Install Pillow with: python3 -m pip install Pillow"
+
+
+def ffmpeg_install_hint() -> str:
+    if platform.system() == "Windows":
+        return "Install ffmpeg with: winget install -e --id Gyan.FFmpeg, then open a new PowerShell window."
+    if platform.system() == "Darwin":
+        return "Install ffmpeg with: brew install ffmpeg"
+    return "Install ffmpeg/ffprobe and make sure both commands are on PATH."
 
 
 def module_available(name: str) -> bool:
@@ -249,7 +313,7 @@ def preflight(args: argparse.Namespace, input_dir: Path, output: Path, tz) -> No
     if sys.version_info < (3, 9):
         problems.append(
             f"Python 3.9+ is required; found {platform.python_version()}. "
-            "Install a newer Python, for example with: brew install python"
+            + python_install_hint()
         )
     else:
         ok.append(f"Python {platform.python_version()}")
@@ -276,19 +340,19 @@ def preflight(args: argparse.Namespace, input_dir: Path, output: Path, tz) -> No
             ok.append(f"ExifTool found: {exiftool}")
         else:
             problems.append(
-                "ExifTool is required for metadata-writing modes. Install it with: brew install exiftool"
+                f"ExifTool is required for metadata-writing modes. {exiftool_install_hint()}"
             )
     elif exiftool:
         ok.append(f"ExifTool found: {exiftool}")
     else:
-        warnings.append("ExifTool not found. Dry-run works, but --apply/overlay merge modes need: brew install exiftool")
+        warnings.append(f"ExifTool not found. Dry-run works, but --apply/overlay merge modes need it. {exiftool_install_hint()}")
 
     if needs_pillow(args):
         if module_available("PIL"):
             ok.append("Python Pillow module found")
         else:
             problems.append(
-                "Python Pillow is required for image overlay composition. Install it with: python3 -m pip install Pillow"
+                f"Python Pillow is required for image overlay composition. {pillow_install_hint()}"
             )
     elif module_available("PIL"):
         ok.append("Python Pillow module found")
@@ -302,12 +366,12 @@ def preflight(args: argparse.Namespace, input_dir: Path, output: Path, tz) -> No
             ok.append(f"ffmpeg found: {ffmpeg}")
             ok.append(f"ffprobe found: {ffprobe}")
         else:
-            problems.append("ffmpeg and ffprobe are required for video overlay merging. Install with: brew install ffmpeg")
+            problems.append(f"ffmpeg and ffprobe are required for video overlay merging. {ffmpeg_install_hint()}")
     elif ffmpeg and ffprobe:
         ok.append(f"ffmpeg found: {ffmpeg}")
         ok.append(f"ffprobe found: {ffprobe}")
     else:
-        warnings.append("ffmpeg/ffprobe not found. Video overlay dry-run works, but merging videos needs: brew install ffmpeg")
+        warnings.append(f"ffmpeg/ffprobe not found. Video overlay dry-run works, but merging videos needs them. {ffmpeg_install_hint()}")
 
     if input_dir.exists() and input_dir.is_dir():
         media_paths, json_paths, ignored = discover_paths(input_dir, output)
@@ -855,7 +919,7 @@ def run_exiftool_batches(records: List[MediaRecord], output: Path, batch_size: i
     if not exiftool:
         raise SystemExit(
             "ExifTool is required for --apply because embedded metadata was requested.\n"
-            "Install it on macOS with: brew install exiftool"
+            f"{exiftool_install_hint()}"
         )
     total = len(records)
     for start in range(0, total, batch_size):
@@ -1448,7 +1512,7 @@ def merge_video_overlays_into_media(output: Path, tz, dry_run: bool, progress_ev
     ffmpeg = find_ffmpeg()
     ffprobe = find_ffprobe()
     if not dry_run and (not ffmpeg or not ffprobe):
-        raise SystemExit("ffmpeg and ffprobe are required for video overlay merging. Install with: brew install ffmpeg")
+        raise SystemExit(f"ffmpeg and ffprobe are required for video overlay merging. {ffmpeg_install_hint()}")
 
     metadata = output / "metadata"
     logs = output / "logs"

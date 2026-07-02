@@ -13,6 +13,7 @@ It creates a new output folder with:
 - correct capture date/time in the filename;
 - embedded photo/video metadata;
 - Finder-friendly creation dates on macOS;
+- embedded metadata and sortable modified dates on Windows;
 - Snapchat text/image/video overlays merged into the right files when safe;
 - CSV reports showing what was merged, skipped, duplicated, or missing.
 
@@ -20,9 +21,11 @@ Your original Snapchat export folder is not edited.
 
 ## What You Need
 
-This tool is built for macOS.
+This tool works on macOS and Windows.
 
-Install the requirements once:
+The script needs Python 3.9 or newer, ExifTool, ffmpeg, and Pillow.
+
+On macOS, install the requirements once:
 
 ```bash
 brew install exiftool
@@ -36,8 +39,17 @@ If you do not have Homebrew, install it from:
 https://brew.sh
 ```
 
-The script also needs Python 3.9 or newer. macOS usually already has a usable
-Python 3, but Homebrew Python also works.
+On Windows, open PowerShell and install the requirements once:
+
+```powershell
+winget install -e --id Python.Python.3.12
+winget install -e --id OliverBetz.ExifTool
+winget install -e --id Gyan.FFmpeg
+py -m pip install Pillow
+```
+
+After installing ExifTool or ffmpeg on Windows, close PowerShell and open it
+again. This lets Windows refresh the command path.
 
 ## Step 1: Unzip Snapchat's ZIP Files
 
@@ -58,7 +70,9 @@ folder that contains all the unzipped export folders.
 
 ## Step 2: Run a Check First
 
-Open Terminal and run:
+Open Terminal on macOS or PowerShell on Windows.
+
+macOS example:
 
 ```bash
 python3 normalize_snapchat_export.py "/path/to/Snapchat export" \
@@ -67,7 +81,7 @@ python3 normalize_snapchat_export.py "/path/to/Snapchat export" \
   --check
 ```
 
-Example:
+Real macOS path example:
 
 ```bash
 python3 normalize_snapchat_export.py "/Users/you/Downloads/Snapchat export" \
@@ -76,7 +90,19 @@ python3 normalize_snapchat_export.py "/Users/you/Downloads/Snapchat export" \
   --check
 ```
 
+Windows path example:
+
+```powershell
+py normalize_snapchat_export.py "C:\Users\you\Downloads\Snapchat export" `
+  --output "C:\Users\you\Downloads\Snapchat export normalized" `
+  --timezone Europe/Amsterdam `
+  --check
+```
+
 If something is missing, the script tells you what to install.
+
+The examples below use `python3`, which is the usual macOS command. On Windows,
+use `py` instead and keep your paths in quotes.
 
 ## Step 3: Do a Dry Run
 
@@ -115,7 +141,7 @@ python3 normalize_snapchat_export.py "/path/to/Snapchat export" \
   --low-impact
 ```
 
-Use `--low-impact` if you want the Mac to stay more usable while the script
+Use `--low-impact` if you want the computer to stay more usable while the script
 runs. It is slower, but gentler.
 
 ## Step 5: Merge Video Overlays
@@ -171,6 +197,10 @@ Example:
 The date/time in the filename uses the timezone you pass with `--timezone`.
 UTC timestamps are still kept in the metadata reports.
 
+On macOS, EasySnapExport also tries to set the Finder creation date. On Windows,
+it sets the embedded media metadata plus the file modified/access time; Windows
+Explorer's `Created` column may still show when the cleaned copy was created.
+
 ## What Happens to Overlays?
 
 Snapchat often stores the visual overlay separately from the photo or video.
@@ -223,7 +253,7 @@ python3 normalize_snapchat_export.py "/path/to/Snapchat export" \
   --check
 ```
 
-Common fixes:
+Common macOS fixes:
 
 ```bash
 brew install exiftool
@@ -237,12 +267,25 @@ If Terminal says `python3: command not found`, install Python:
 brew install python
 ```
 
+Common Windows fixes:
+
+```powershell
+winget install -e --id Python.Python.3.12
+winget install -e --id OliverBetz.ExifTool
+winget install -e --id Gyan.FFmpeg
+py -m pip install Pillow
+```
+
+After installing Windows tools, open a new PowerShell window and run the check
+again. If `ffmpeg` is still not found, Windows did not add it to `PATH`; reinstall
+with winget or add the ffmpeg `bin` folder to your Windows `PATH`.
+
 If the script says it found no Snapchat media files, you probably selected the
 wrong folder. Choose the parent folder that contains all unzipped `mydata...`
 folders.
 
 If video merging feels slow, that is normal. Videos must be re-encoded. Keep
-`--low-impact` on if you want the Mac to stay responsive.
+`--low-impact` on if you want the computer to stay responsive.
 
 ## Resume a Run
 
@@ -312,7 +355,7 @@ UTC timestamps are still stored in the reports.
 
 `--check`
 
-Checks whether your Mac is ready. It does not copy, edit, or delete media.
+Checks whether your computer is ready. It does not copy, edit, or delete media.
 
 Use this first on a new computer.
 
@@ -323,8 +366,9 @@ exist in the output folder with the expected size.
 
 `--low-impact`
 
-Makes the script gentler on your Mac. It uses fewer workers, smaller metadata
-batches, and lower process priority. This is recommended for big exports.
+Makes the script gentler on your computer. It uses fewer workers, smaller
+metadata batches, and lower process priority where the operating system supports
+it. This is recommended for big exports.
 
 ### Main Action Settings
 
@@ -412,7 +456,7 @@ Default:
 min(8, CPU count)
 ```
 
-For a calmer Mac:
+For a calmer computer:
 
 ```bash
 --workers 2
@@ -430,7 +474,7 @@ Default:
 750
 ```
 
-You normally do not need to change this. If your Mac feels slow or memory-heavy,
+You normally do not need to change this. If your computer feels slow or memory-heavy,
 try:
 
 ```bash
