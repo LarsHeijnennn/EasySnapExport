@@ -19,6 +19,27 @@ It creates a new output folder with:
 
 Your original Snapchat export folder is not edited.
 
+## Get EasySnapExport
+
+First, download the tool to your computer.
+
+If you have Git installed, open Terminal on macOS or PowerShell on Windows and
+run:
+
+```bash
+git clone https://github.com/LarsHeijnennn/EasySnapExport.git
+cd EasySnapExport
+```
+
+If your computer says `git` is not found, use the GitHub page instead:
+
+```text
+https://github.com/LarsHeijnennn/EasySnapExport
+```
+
+Click `Code`, then `Download ZIP`, unzip the file, and open Terminal or
+PowerShell inside the unzipped `EasySnapExport` folder.
+
 ## What You Need
 
 This tool works on macOS and Windows.
